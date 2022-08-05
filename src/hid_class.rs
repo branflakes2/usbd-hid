@@ -665,7 +665,7 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                 }
             }
             HID_REQ_SET_REPORT => {
-                let report_type = ((req.value >> 8) as u8).into();
+                /*let report_type = ((req.value >> 8) as u8).into();
                 let report_id = (req.value & 0xFF) as u8;
                 let len = req.length as usize;
 
@@ -685,9 +685,9 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                             len,
                         },
                         buf,
-                    });
-                    xfer.accept().ok();
-                }
+                    });*/
+                xfer.accept().ok();
+                //}
             }
             _ => {
                 xfer.reject().ok();
