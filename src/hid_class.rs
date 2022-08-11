@@ -3,14 +3,17 @@ use usb_device::class_prelude::*;
 use usb_device::Result;
 
 use crate::descriptor::AsInputReport;
+use cortex_m_semihosting::{debug, hprintln};
 extern crate ssmarshal;
 use ssmarshal::serialize;
 
 const USB_CLASS_HID: u8 = 0x03;
 
 // HID
+const HID_DESC_DESCTYPE_DEV: u8 = 0x01;
 const HID_DESC_DESCTYPE_HID: u8 = 0x21;
 const HID_DESC_DESCTYPE_HID_REPORT: u8 = 0x22;
+const HID_DESC_DESCTYPE_BOS: u8 = 0x0f;
 const HID_DESC_SPEC_1_10: [u8; 2] = [0x10, 0x01];
 
 /// Requests the set idle rate from the device
@@ -574,6 +577,18 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                 match (req.value >> 8) as u8 {
                     HID_DESC_DESCTYPE_HID_REPORT => {
                         xfer.accept_with_static(self.report_descriptor).ok();
+                        //hprintln!("accept get hid report");
+                    }
+                    HID_DESC_DESCTYPE_BOS => {
+                        xfer.reject().ok();
+                        //hprintln!("bos");
+                    }
+                    HID_DESC_DESCTYPE_DEV => {
+                        let buf = &[
+                            0x12, 0x01, 0x10, 0x01, 0x00, 0x00, 0x00, 0x08, 0xad, 0xde, 0xef, 0xbe,
+                            0x00, 0x01, 0x01, 0x02, 0x03, 0x01,
+                        ];
+                        xfer.accept_with(buf).ok();
                     }
                     HID_DESC_DESCTYPE_HID => {
                         let buf = &[
@@ -594,8 +609,11 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                             (self.report_descriptor.len() >> 8 & 0xFF) as u8,
                         ];
                         xfer.accept_with(buf).ok();
+                        //hprintln!("accept get hid desc");
                     }
-                    _ => {}
+                    _ => {
+                        //hprintln!("unknown descriptor");
+                    }
                 }
             }
             (control::RequestType::Class, HID_REQ_GET_REPORT) => {
@@ -606,6 +624,7 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                 // with a need for it, I think it's safe to leave unsupported.
                 // See: https://www.usb.org/sites/default/files/documents/hid1_11.pdf 7.2.1
                 xfer.reject().ok(); // Not supported for now
+                                    //hprintln!("reject get report");
             }
             (control::RequestType::Class, HID_REQ_GET_IDLE) => {
                 // XXX (HaaTa): As a note for future readers
@@ -624,16 +643,21 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                 //
                 // Each Report ID can be configured independently.
                 xfer.reject().ok(); // Not supported for now
+                                    //hprintln!("reject get idle");
             }
             (control::RequestType::Class, HID_REQ_GET_PROTOCOL) => {
                 // Only accept in supported configurations
                 if let Some(protocol) = self.protocol {
                     xfer.accept_with(&[protocol as u8]).ok();
+                    //hprintln!("accept get protocol");
                 } else {
                     xfer.reject().ok();
+                    //hprintln!("reject get protocol");
                 }
             }
-            _ => {}
+            _ => {
+                //hprintln!("Unknown");
+            }
         }
     }
 
@@ -650,7 +674,8 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
 
         match req.request {
             HID_REQ_SET_IDLE => {
-                xfer.accept().ok();
+                xfer.reject().ok();
+                //hprintln!("set idle");
             }
             HID_REQ_SET_PROTOCOL => {
                 // Only accept in supported configurations
@@ -660,12 +685,14 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                         self.protocol = Some(((req.value & 0xFF) as u8).into());
                     }
                     xfer.accept().ok();
+                    //hprintln!("accept set protocol");
                 } else {
                     xfer.reject().ok();
+                    //hprintln!("reject set protocol");
                 }
             }
             HID_REQ_SET_REPORT => {
-                /*let report_type = ((req.value >> 8) as u8).into();
+                let report_type = ((req.value >> 8) as u8).into();
                 let report_id = (req.value & 0xFF) as u8;
                 let len = req.length as usize;
 
@@ -685,12 +712,14 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                             len,
                         },
                         buf,
-                    });*/
-                xfer.accept().ok();
-                //}
+                    });
+                    xfer.accept().ok();
+                    //hprintln!("set report");
+                }
             }
             _ => {
                 xfer.reject().ok();
+                //hprintln!("out other");
             }
         }
     }
